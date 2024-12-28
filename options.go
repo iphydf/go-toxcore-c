@@ -5,7 +5,8 @@ package tox
 #include <string.h>
 #include <tox/tox.h>
 
-extern void toxCallbackLog(Tox*, Tox_Log_Level, char*, uint32_t, char*, char*);
+typedef const char cchar_t;
+extern void toxCallbackLog(Tox*, Tox_Log_Level, cchar_t*, uint32_t, cchar_t*, cchar_t*, void*);
 
 */
 import "C"
@@ -95,7 +96,7 @@ func (this *ToxOptions) toCToxOptions() *C.struct_Tox_Options {
 }
 
 //export toxCallbackLog
-func toxCallbackLog(ctox *C.Tox, level C.Tox_Log_Level, file *C.char, line C.uint32_t, fname *C.char, msg *C.char) {
+func toxCallbackLog(ctox *C.Tox, level C.Tox_Log_Level, file *C.cchar_t, line C.uint32_t, fname *C.cchar_t, msg *C.cchar_t, userdata unsafe.Pointer) {
 	t := cbUserDatas.get(ctox)
 	if t != nil && t.opts != nil && t.opts.LogCallback != nil {
 		t.opts.LogCallback(t, int(level), C.GoString(file), uint32(line), C.GoString(fname), C.GoString(msg))

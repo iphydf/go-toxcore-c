@@ -7,23 +7,24 @@ package tox
 
 //////
 
-void callbackFriendRequestWrapperForC(Tox *, uint8_t *, uint8_t *, uint16_t, void*);
-void callbackFriendMessageWrapperForC(Tox *, uint32_t, int, uint8_t*, uint32_t, void*);
-void callbackFriendNameWrapperForC(Tox *, uint32_t, uint8_t*, uint32_t, void*);
-void callbackFriendStatusMessageWrapperForC(Tox *, uint32_t, uint8_t*, uint32_t, void*);
-void callbackFriendStatusWrapperForC(Tox *, uint32_t, int, void*);
-void callbackFriendConnectionStatusWrapperForC(Tox *, uint32_t, int, void*);
+typedef const uint8_t cuint8_t;
+void callbackFriendRequestWrapperForC(Tox *, cuint8_t *, cuint8_t *, size_t, void*);
+void callbackFriendMessageWrapperForC(Tox *, uint32_t, Tox_Message_Type, cuint8_t*, size_t, void*);
+void callbackFriendNameWrapperForC(Tox *, uint32_t, cuint8_t*, size_t, void*);
+void callbackFriendStatusMessageWrapperForC(Tox *, uint32_t, cuint8_t*, size_t, void*);
+void callbackFriendStatusWrapperForC(Tox *, uint32_t, Tox_User_Status, void*);
+void callbackFriendConnectionStatusWrapperForC(Tox *, uint32_t, Tox_Connection, void*);
 void callbackFriendTypingWrapperForC(Tox *, uint32_t, uint8_t, void*);
 void callbackFriendReadReceiptWrapperForC(Tox *, uint32_t, uint32_t, void*);
-void callbackFriendLossyPacketWrapperForC(Tox *, uint32_t, uint8_t*, size_t, void*);
-void callbackFriendLosslessPacketWrapperForC(Tox *, uint32_t, uint8_t*, size_t, void*);
+void callbackFriendLossyPacketWrapperForC(Tox *, uint32_t, cuint8_t*, size_t, void*);
+void callbackFriendLosslessPacketWrapperForC(Tox *, uint32_t, cuint8_t*, size_t, void*);
 void callbackSelfConnectionStatusWrapperForC(Tox *, int, void*);
 void callbackFileRecvControlWrapperForC(Tox *tox, uint32_t friend_number, uint32_t file_number,
                                       Tox_File_Control control, void *user_data);
 void callbackFileRecvWrapperForC(Tox *tox, uint32_t friend_number, uint32_t file_number, uint32_t kind,
-                               uint64_t file_size, uint8_t *filename, size_t filename_length, void *user_data);
+                               uint64_t file_size, cuint8_t *filename, size_t filename_length, void *user_data);
 void callbackFileRecvChunkWrapperForC(Tox *tox, uint32_t friend_number, uint32_t file_number, uint64_t position,
-                                    uint8_t *data, size_t length, void *user_data);
+                                    cuint8_t *data, size_t length, void *user_data);
 void callbackFileChunkRequestWrapperForC(Tox *tox, uint32_t friend_number, uint32_t file_number, uint64_t position,
                                        size_t length, void *user_data);
 
@@ -118,7 +119,7 @@ type Tox struct {
 var cbUserDatas = newUserData()
 
 //export callbackFriendRequestWrapperForC
-func callbackFriendRequestWrapperForC(m *C.Tox, a0 *C.uint8_t, a1 *C.uint8_t, a2 C.uint16_t, a3 unsafe.Pointer) {
+func callbackFriendRequestWrapperForC(m *C.Tox, a0 *C.cuint8_t, a1 *C.cuint8_t, a2 C.size_t, a3 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_friend_requests {
 		pubkey_b := C.GoBytes(unsafe.Pointer(a0), C.int(PUBLIC_KEY_SIZE))
@@ -145,8 +146,8 @@ func (this *Tox) CallbackFriendRequestAdd(cbfn cb_friend_request_ftype, userData
 }
 
 //export callbackFriendMessageWrapperForC
-func callbackFriendMessageWrapperForC(m *C.Tox, a0 C.uint32_t, mtype C.int,
-	a1 *C.uint8_t, a2 C.uint32_t, a3 unsafe.Pointer) {
+func callbackFriendMessageWrapperForC(m *C.Tox, a0 C.uint32_t, mtype C.Tox_Message_Type,
+	a1 *C.cuint8_t, a2 C.size_t, a3 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_friend_messages {
 		message_ := C.GoStringN((*C.char)(unsafe.Pointer(a1)), (C.int)(a2))
@@ -169,7 +170,7 @@ func (this *Tox) CallbackFriendMessageAdd(cbfn cb_friend_message_ftype, userData
 }
 
 //export callbackFriendNameWrapperForC
-func callbackFriendNameWrapperForC(m *C.Tox, a0 C.uint32_t, a1 *C.uint8_t, a2 C.uint32_t, a3 unsafe.Pointer) {
+func callbackFriendNameWrapperForC(m *C.Tox, a0 C.uint32_t, a1 *C.cuint8_t, a2 C.size_t, a3 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_friend_names {
 		name := C.GoStringN((*C.char)((unsafe.Pointer)(a1)), C.int(a2))
@@ -192,7 +193,7 @@ func (this *Tox) CallbackFriendNameAdd(cbfn cb_friend_name_ftype, userData inter
 }
 
 //export callbackFriendStatusMessageWrapperForC
-func callbackFriendStatusMessageWrapperForC(m *C.Tox, a0 C.uint32_t, a1 *C.uint8_t, a2 C.uint32_t, a3 unsafe.Pointer) {
+func callbackFriendStatusMessageWrapperForC(m *C.Tox, a0 C.uint32_t, a1 *C.cuint8_t, a2 C.size_t, a3 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_friend_status_messages {
 		statusText := C.GoStringN((*C.char)(unsafe.Pointer(a1)), C.int(a2))
@@ -215,7 +216,7 @@ func (this *Tox) CallbackFriendStatusMessageAdd(cbfn cb_friend_status_message_ft
 }
 
 //export callbackFriendStatusWrapperForC
-func callbackFriendStatusWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.int, a2 unsafe.Pointer) {
+func callbackFriendStatusWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.Tox_User_Status, a2 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_friend_statuss {
 		cbfn := *(*cb_friend_status_ftype)(cbfni)
@@ -237,7 +238,7 @@ func (this *Tox) CallbackFriendStatusAdd(cbfn cb_friend_status_ftype, userData i
 }
 
 //export callbackFriendConnectionStatusWrapperForC
-func callbackFriendConnectionStatusWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.int, a2 unsafe.Pointer) {
+func callbackFriendConnectionStatusWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.Tox_Connection, a2 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_friend_connection_statuss {
 		cbfn := *(*cb_friend_connection_status_ftype)((unsafe.Pointer)(cbfni))
@@ -303,7 +304,7 @@ func (this *Tox) CallbackFriendReadReceiptAdd(cbfn cb_friend_read_receipt_ftype,
 }
 
 //export callbackFriendLossyPacketWrapperForC
-func callbackFriendLossyPacketWrapperForC(m *C.Tox, a0 C.uint32_t, a1 *C.uint8_t, len C.size_t, a2 unsafe.Pointer) {
+func callbackFriendLossyPacketWrapperForC(m *C.Tox, a0 C.uint32_t, a1 *C.cuint8_t, len C.size_t, a2 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_friend_lossy_packets {
 		cbfn := *(*cb_friend_lossy_packet_ftype)(cbfni)
@@ -326,7 +327,7 @@ func (this *Tox) CallbackFriendLossyPacketAdd(cbfn cb_friend_lossy_packet_ftype,
 }
 
 //export callbackFriendLosslessPacketWrapperForC
-func callbackFriendLosslessPacketWrapperForC(m *C.Tox, a0 C.uint32_t, a1 *C.uint8_t, len C.size_t, a2 unsafe.Pointer) {
+func callbackFriendLosslessPacketWrapperForC(m *C.Tox, a0 C.uint32_t, a1 *C.cuint8_t, len C.size_t, a2 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_friend_lossless_packets {
 		cbfn := *(*cb_friend_lossless_packet_ftype)(cbfni)
@@ -395,7 +396,7 @@ func (this *Tox) CallbackFileRecvControlAdd(cbfn cb_file_recv_control_ftype, use
 
 //export callbackFileRecvWrapperForC
 func callbackFileRecvWrapperForC(m *C.Tox, friendNumber C.uint32_t, fileNumber C.uint32_t, kind C.uint32_t,
-	fileSize C.uint64_t, fileName *C.uint8_t, fileNameLength C.size_t, userData unsafe.Pointer) {
+	fileSize C.uint64_t, fileName *C.cuint8_t, fileNameLength C.size_t, userData unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_file_recvs {
 		cbfn := *(*cb_file_recv_ftype)(cbfni)
@@ -422,7 +423,7 @@ func (this *Tox) CallbackFileRecvAdd(cbfn cb_file_recv_ftype, userData interface
 
 //export callbackFileRecvChunkWrapperForC
 func callbackFileRecvChunkWrapperForC(m *C.Tox, friendNumber C.uint32_t, fileNumber C.uint32_t,
-	position C.uint64_t, data *C.uint8_t, length C.size_t, userData unsafe.Pointer) {
+	position C.uint64_t, data *C.cuint8_t, length C.size_t, userData unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_file_recv_chunks {
 		cbfn := *(*cb_file_recv_chunk_ftype)(cbfni)

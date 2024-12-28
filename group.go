@@ -6,12 +6,12 @@ package tox
 #include <string.h>
 #include <tox/tox.h>
 
-void callbackConferenceInviteWrapperForC(Tox*, uint32_t, Tox_Conference_Type, uint8_t *, size_t, void *);
-void callbackConferenceMessageWrapperForC(Tox *, uint32_t, uint32_t, Tox_Message_Type, int8_t *, size_t, void *);
-// void callbackConferenceActionWrapperForC(Tox*, uint32_t, uint32_t, uint8_t*, size_t, void*);
+typedef const uint8_t gcuint8_t;
+void callbackConferenceInviteWrapperForC(Tox*, uint32_t, Tox_Conference_Type, gcuint8_t *, size_t, void *);
+void callbackConferenceMessageWrapperForC(Tox *, uint32_t, uint32_t, Tox_Message_Type, gcuint8_t *, size_t, void *);
 
-void callbackConferenceTitleWrapperForC(Tox*, uint32_t, uint32_t, uint8_t*, size_t, void*);
-void callbackConferencePeerNameWrapperForC(Tox*, uint32_t, uint32_t, uint8_t*, size_t, void*);
+void callbackConferenceTitleWrapperForC(Tox*, uint32_t, uint32_t, gcuint8_t*, size_t, void*);
+void callbackConferencePeerNameWrapperForC(Tox*, uint32_t, uint32_t, gcuint8_t*, size_t, void*);
 void callbackConferencePeerListChangedWrapperForC(Tox*, uint32_t, void*);
 
 // fix nouse compile warning
@@ -40,7 +40,7 @@ type cb_conference_peer_list_changed_ftype func(this *Tox, groupNumber uint32, u
 // tox_callback_conference_***
 
 //export callbackConferenceInviteWrapperForC
-func callbackConferenceInviteWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.Tox_Conference_Type, a2 *C.uint8_t, a3 C.size_t, a4 unsafe.Pointer) {
+func callbackConferenceInviteWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.Tox_Conference_Type, a2 *C.gcuint8_t, a3 C.size_t, a4 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_conference_invites {
 		cbfn := *(*cb_conference_invite_ftype)(cbfni)
@@ -64,7 +64,7 @@ func (this *Tox) CallbackConferenceInviteAdd(cbfn cb_conference_invite_ftype, us
 }
 
 //export callbackConferenceMessageWrapperForC
-func callbackConferenceMessageWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.uint32_t, mtype C.Tox_Message_Type, a2 *C.int8_t, a3 C.size_t, a4 unsafe.Pointer) {
+func callbackConferenceMessageWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.uint32_t, mtype C.Tox_Message_Type, a2 *C.gcuint8_t, a3 C.size_t, a4 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	if int(mtype) == MESSAGE_TYPE_NORMAL {
 		for cbfni, ud := range this.cb_conference_messages {
@@ -115,7 +115,7 @@ func (this *Tox) CallbackConferenceActionAdd(cbfn cb_conference_action_ftype, us
 }
 
 //export callbackConferenceTitleWrapperForC
-func callbackConferenceTitleWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.uint32_t, a2 *C.uint8_t, a3 C.size_t, a4 unsafe.Pointer) {
+func callbackConferenceTitleWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.uint32_t, a2 *C.gcuint8_t, a3 C.size_t, a4 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_conference_titles {
 		cbfn := *(*cb_conference_title_ftype)(cbfni)
@@ -138,7 +138,7 @@ func (this *Tox) CallbackConferenceTitleAdd(cbfn cb_conference_title_ftype, user
 }
 
 //export callbackConferencePeerNameWrapperForC
-func callbackConferencePeerNameWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.uint32_t, a2 *C.uint8_t, a3 C.size_t, a4 unsafe.Pointer) {
+func callbackConferencePeerNameWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.uint32_t, a2 *C.gcuint8_t, a3 C.size_t, a4 unsafe.Pointer) {
 	var this = cbUserDatas.get(m)
 	for cbfni, ud := range this.cb_conference_peer_names {
 		cbfn := *(*cb_conference_peer_name_ftype)(cbfni)
