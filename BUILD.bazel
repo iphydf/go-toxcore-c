@@ -34,7 +34,6 @@ go_library(
 
 go_test(
     name = "go_default_test",
-    size = "small",
     srcs = [
         "group_intern_test.go",
         "tox_test.go",

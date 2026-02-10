@@ -1,12 +1,12 @@
 ---
 bazel-opt_task:
   container:
-    image: toxchat/toktok-stack:latest-release
+    image: toxchat/toktok-stack:latest
     cpu: 2
     memory: 4G
   configure_script:
     - /src/workspace/tools/inject-repo go-toxcore-c
   test_all_script:
     - cd /src/workspace && bazel test -k
-        --config=ci
-        //go-toxcore-c/...
+      --config=ci
+      //go-toxcore-c/...
