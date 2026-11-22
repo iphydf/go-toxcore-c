@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "toxtest",
+    testonly = True,
+    srcs = ["toxtest.go"],
+    importpath = "github.com/TokTok/go-toxcore-c/internal/toxtest",
+    visibility = ["//go-toxcore-c:__subpackages__"],
+    deps = ["//go-toxcore-c:go_default_library"],
+)

@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "toxav",
+    srcs = [
+        "av.go",
+        "errors.go",
+        "events.go",
+        "types.go",
+    ],
+    cdeps = ["//c-toxcore"],
+    cgo = True,
+    importpath = "github.com/TokTok/go-toxcore-c/toxav",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//go-toxcore-c:go_default_library",
+        "//go-toxcore-c/internal/handle",
+    ],
+)
+
+go_test(
+    name = "toxav_test",
+    size = "large",
+    srcs = ["toxav_test.go"],
+    race = "on",
+    deps = [
+        ":toxav",
+        "//go-toxcore-c:go_default_library",
+        "//go-toxcore-c/internal/toxtest",
+    ],
+)

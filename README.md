@@ -1,41 +1,59 @@
-[![Build Status](https://travis-ci.org/TokTok/go-toxcore-c.svg?branch=master)](https://travis-ci.org/TokTok/go-toxcore-c)
-[![GoDoc](https://godoc.org/github.com/TokTok/go-toxcore-c?status.svg)](https://godoc.org/github.com/TokTok/go-toxcore-c)
+## go-toxcore-c
 
-## go-toxcore
-
-The golang bindings for libtoxcore 
-
+A Go binding to [c-toxcore](https://github.com/TokTok/c-toxcore).
 
 ### Installation
 
-    # fetch libtoxcore if necessary
-    # see https://github.com/TokTok/c-toxcore/blob/master/INSTALL.md
+Install c-toxcore (see its
+[INSTALL.md](https://github.com/TokTok/c-toxcore/blob/master/INSTALL.md)), then:
+
     go get github.com/TokTok/go-toxcore-c
 
+### Example
 
-### Examples
+An echo bot:
 
-    import "github.com/TokTok/go-toxcore-c"
+```go
+package main
 
-    // use custom options
-    opt := tox.NewToxOptions()
-    t := tox.NewTox(opt)
-    av := tox.NewToxAV(t)
-    
-    // use default options
-    t := tox.NewTox(nil)
-    av := tox.NewToxAV(t)
+import (
+	"log"
+	"time"
+
+	tox "github.com/TokTok/go-toxcore-c"
+)
+
+func main() {
+	t, err := tox.New(nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer t.Close()
+	log.Print("address: ", t.Address())
+
+	for {
+		events, err := t.Iterate()
+		if err != nil {
+			log.Print(err)
+		}
+		for _, ev := range events {
+			switch ev := ev.(type) {
+			case *tox.EventFriendRequest:
+				t.FriendAddNoRequest(ev.PublicKey)
+			case *tox.EventFriendMessage:
+				ev.Friend.SendMessage(ev.Type, ev.Message)
+			}
+		}
+		time.Sleep(t.IterationInterval())
+	}
+}
+```
+
+It still needs to bootstrap from a node on the network with `t.Bootstrap`.
+
+Audio and video calls are in package `toxav`, and encrypting saved profiles
+with a passphrase in package `toxencryptsave`.
 
 ### Tests
 
-    go test -v -covermode count
-    
-
-Contributing
-------------
-
-1. Fork it
-2. Create your feature branch (``git checkout -b my-new-feature``)
-3. Commit your changes (``git commit -am 'Add some feature'``)
-4. Push to the branch (``git push origin my-new-feature``)
-5. Create new Pull Request
+    bazel test //go-toxcore-c/...

@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "toxencryptsave",
+    srcs = ["toxencryptsave.go"],
+    cdeps = ["//c-toxcore"],
+    cgo = True,
+    importpath = "github.com/TokTok/go-toxcore-c/toxencryptsave",
+    visibility = ["//visibility:public"],
+    deps = ["//go-toxcore-c/internal/cname"],
+)
+
+go_test(
+    name = "toxencryptsave_test",
+    size = "small",
+    srcs = ["toxencryptsave_test.go"],
+    race = "on",
+    deps = [
+        ":toxencryptsave",
+        "//go-toxcore-c:go_default_library",
+        "//go-toxcore-c/internal/toxtest",
+    ],
+)

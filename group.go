@@ -1,471 +1,541 @@
 package tox
 
 /*
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include <tox/tox.h>
-
-typedef const uint8_t gcuint8_t;
-void callbackConferenceInviteWrapperForC(Tox*, uint32_t, Tox_Conference_Type, gcuint8_t *, size_t, void *);
-void callbackConferenceMessageWrapperForC(Tox *, uint32_t, uint32_t, Tox_Message_Type, gcuint8_t *, size_t, void *);
-
-void callbackConferenceTitleWrapperForC(Tox*, uint32_t, uint32_t, gcuint8_t*, size_t, void*);
-void callbackConferencePeerNameWrapperForC(Tox*, uint32_t, uint32_t, gcuint8_t*, size_t, void*);
-void callbackConferencePeerListChangedWrapperForC(Tox*, uint32_t, void*);
-
-// fix nouse compile warning
-static inline __attribute__((__unused__)) void fixnousetoxgroup(void) {
-}
-
 */
 import "C"
-import (
-	"encoding/hex"
-	"errors"
-	"math"
-	"strings"
-	"unsafe"
+
+import "fmt"
+
+const (
+	GroupMaxTopicLength                = C.TOX_GROUP_MAX_TOPIC_LENGTH
+	GroupMaxPartLength                 = C.TOX_GROUP_MAX_PART_LENGTH
+	GroupMaxMessageLength              = C.TOX_GROUP_MAX_MESSAGE_LENGTH
+	GroupMaxCustomLossyPacketLength    = C.TOX_GROUP_MAX_CUSTOM_LOSSY_PACKET_LENGTH
+	GroupMaxCustomLosslessPacketLength = C.TOX_GROUP_MAX_CUSTOM_LOSSLESS_PACKET_LENGTH
+	GroupMaxGroupNameLength            = C.TOX_GROUP_MAX_GROUP_NAME_LENGTH
+	GroupMaxPasswordSize               = C.TOX_GROUP_MAX_PASSWORD_SIZE
 )
 
-// conference callback type
-type cb_conference_invite_ftype func(this *Tox, friendNumber uint32, itype uint8, cookie string, userData interface{})
-type cb_conference_message_ftype func(this *Tox, groupNumber uint32, peerNumber uint32, message string, userData interface{})
+type GroupChatID [C.TOX_GROUP_CHAT_ID_SIZE]byte
 
-type cb_conference_action_ftype func(this *Tox, groupNumber uint32, peerNumber uint32, action string, userData interface{})
-type cb_conference_title_ftype func(this *Tox, groupNumber uint32, peerNumber uint32, title string, userData interface{})
-type cb_conference_peer_name_ftype func(this *Tox, groupNumber uint32, peerNumber uint32, name string, userData interface{})
-type cb_conference_peer_list_changed_ftype func(this *Tox, groupNumber uint32, userData interface{})
+func (id GroupChatID) String() string { return hexString(id[:]) }
 
-// tox_callback_conference_***
-
-//export callbackConferenceInviteWrapperForC
-func callbackConferenceInviteWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.Tox_Conference_Type, a2 *C.gcuint8_t, a3 C.size_t, a4 unsafe.Pointer) {
-	var this = cbUserDatas.get(m)
-	for cbfni, ud := range this.cb_conference_invites {
-		cbfn := *(*cb_conference_invite_ftype)(cbfni)
-		data := C.GoBytes((unsafe.Pointer)(a2), C.int(a3))
-		cookie := strings.ToUpper(hex.EncodeToString(data))
-		this.putcbevts(func() { cbfn(this, uint32(a0), uint8(a1), cookie, ud) })
-	}
+func ParseGroupChatID(s string) (GroupChatID, error) {
+	var id GroupChatID
+	return id, parseHex(id[:], s, "group chat ID")
 }
 
-func (this *Tox) CallbackConferenceInvite(cbfn cb_conference_invite_ftype, userData interface{}) {
-	this.CallbackConferenceInviteAdd(cbfn, userData)
-}
-func (this *Tox) CallbackConferenceInviteAdd(cbfn cb_conference_invite_ftype, userData interface{}) {
-	cbfnp := (unsafe.Pointer)(&cbfn)
-	if _, ok := this.cb_conference_invites[cbfnp]; ok {
-		return
-	}
-	this.cb_conference_invites[cbfnp] = userData
+type GroupNumber uint32
 
-	C.tox_callback_conference_invite(this.toxcore, (*C.tox_conference_invite_cb)(C.callbackConferenceInviteWrapperForC))
-}
+type GroupPeerNumber uint32
 
-//export callbackConferenceMessageWrapperForC
-func callbackConferenceMessageWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.uint32_t, mtype C.Tox_Message_Type, a2 *C.gcuint8_t, a3 C.size_t, a4 unsafe.Pointer) {
-	var this = cbUserDatas.get(m)
-	if int(mtype) == MESSAGE_TYPE_NORMAL {
-		for cbfni, ud := range this.cb_conference_messages {
-			cbfn := *(*cb_conference_message_ftype)(cbfni)
-			message := C.GoStringN((*C.char)(unsafe.Pointer(a2)), C.int(a3))
-			this.putcbevts(func() { cbfn(this, uint32(a0), uint32(a1), message, ud) })
-		}
-	} else {
-		for cbfni, ud := range this.cb_conference_actions {
-			cbfn := *(*cb_conference_action_ftype)(cbfni)
-			message := C.GoStringN((*C.char)(unsafe.Pointer(a2)), C.int(a3))
-			this.putcbevts(func() { cbfn(this, uint32(a0), uint32(a1), message, ud) })
-		}
-	}
+type GroupMessageID uint32
+
+type GroupPrivacyState uint32
+
+const (
+	GroupPrivacyStatePublic  GroupPrivacyState = C.TOX_GROUP_PRIVACY_STATE_PUBLIC
+	GroupPrivacyStatePrivate GroupPrivacyState = C.TOX_GROUP_PRIVACY_STATE_PRIVATE
+)
+
+func (s GroupPrivacyState) String() string {
+	return enumString(C.tox_group_privacy_state_to_string(C.Tox_Group_Privacy_State(s)), "TOX_GROUP_PRIVACY_STATE_", "GroupPrivacyState", uint32(s))
 }
 
-func (this *Tox) CallbackConferenceMessage(cbfn cb_conference_message_ftype, userData interface{}) {
-	this.CallbackConferenceMessageAdd(cbfn, userData)
-}
-func (this *Tox) CallbackConferenceMessageAdd(cbfn cb_conference_message_ftype, userData interface{}) {
-	cbfnp := (unsafe.Pointer)(&cbfn)
-	if _, ok := this.cb_conference_messages[cbfnp]; ok {
-		return
-	}
-	this.cb_conference_messages[cbfnp] = userData
+type GroupTopicLock uint32
 
-	if !this.cb_conference_message_setted {
-		this.cb_conference_message_setted = true
+const (
+	GroupTopicLockEnabled  GroupTopicLock = C.TOX_GROUP_TOPIC_LOCK_ENABLED
+	GroupTopicLockDisabled GroupTopicLock = C.TOX_GROUP_TOPIC_LOCK_DISABLED
+)
 
-		C.tox_callback_conference_message(this.toxcore, (*C.tox_conference_message_cb)(C.callbackConferenceMessageWrapperForC))
-	}
+func (l GroupTopicLock) String() string {
+	return enumString(C.tox_group_topic_lock_to_string(C.Tox_Group_Topic_Lock(l)), "TOX_GROUP_TOPIC_LOCK_", "GroupTopicLock", uint32(l))
 }
 
-func (this *Tox) CallbackConferenceAction(cbfn cb_conference_action_ftype, userData interface{}) {
-	this.CallbackConferenceActionAdd(cbfn, userData)
-}
-func (this *Tox) CallbackConferenceActionAdd(cbfn cb_conference_action_ftype, userData interface{}) {
-	cbfnp := (unsafe.Pointer)(&cbfn)
-	if _, ok := this.cb_conference_actions[cbfnp]; ok {
-		return
-	}
-	this.cb_conference_actions[cbfnp] = userData
+type GroupVoiceState uint32
 
-	if !this.cb_conference_message_setted {
-		this.cb_conference_message_setted = true
-		C.tox_callback_conference_message(this.toxcore, (*C.tox_conference_message_cb)(C.callbackConferenceMessageWrapperForC))
-	}
+const (
+	GroupVoiceStateAll       GroupVoiceState = C.TOX_GROUP_VOICE_STATE_ALL
+	GroupVoiceStateModerator GroupVoiceState = C.TOX_GROUP_VOICE_STATE_MODERATOR
+	GroupVoiceStateFounder   GroupVoiceState = C.TOX_GROUP_VOICE_STATE_FOUNDER
+)
+
+func (s GroupVoiceState) String() string {
+	return enumString(C.tox_group_voice_state_to_string(C.Tox_Group_Voice_State(s)), "TOX_GROUP_VOICE_STATE_", "GroupVoiceState", uint32(s))
 }
 
-//export callbackConferenceTitleWrapperForC
-func callbackConferenceTitleWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.uint32_t, a2 *C.gcuint8_t, a3 C.size_t, a4 unsafe.Pointer) {
-	var this = cbUserDatas.get(m)
-	for cbfni, ud := range this.cb_conference_titles {
-		cbfn := *(*cb_conference_title_ftype)(cbfni)
-		title := C.GoStringN((*C.char)((unsafe.Pointer)(a2)), C.int(a3))
-		this.putcbevts(func() { cbfn(this, uint32(a0), uint32(a1), title, ud) })
-	}
+type GroupRole uint32
+
+const (
+	GroupRoleFounder   GroupRole = C.TOX_GROUP_ROLE_FOUNDER
+	GroupRoleModerator GroupRole = C.TOX_GROUP_ROLE_MODERATOR
+	GroupRoleUser      GroupRole = C.TOX_GROUP_ROLE_USER
+	GroupRoleObserver  GroupRole = C.TOX_GROUP_ROLE_OBSERVER
+)
+
+func (r GroupRole) String() string {
+	return enumString(C.tox_group_role_to_string(C.Tox_Group_Role(r)), "TOX_GROUP_ROLE_", "GroupRole", uint32(r))
 }
 
-func (this *Tox) CallbackConferenceTitle(cbfn cb_conference_title_ftype, userData interface{}) {
-	this.CallbackConferenceTitleAdd(cbfn, userData)
-}
-func (this *Tox) CallbackConferenceTitleAdd(cbfn cb_conference_title_ftype, userData interface{}) {
-	cbfnp := (unsafe.Pointer)(&cbfn)
-	if _, ok := this.cb_conference_titles[cbfnp]; ok {
-		return
-	}
-	this.cb_conference_titles[cbfnp] = userData
-
-	C.tox_callback_conference_title(this.toxcore, (*C.tox_conference_title_cb)(C.callbackConferenceTitleWrapperForC))
+type Group struct {
+	tox    *Tox
+	number GroupNumber
 }
 
-//export callbackConferencePeerNameWrapperForC
-func callbackConferencePeerNameWrapperForC(m *C.Tox, a0 C.uint32_t, a1 C.uint32_t, a2 *C.gcuint8_t, a3 C.size_t, a4 unsafe.Pointer) {
-	var this = cbUserDatas.get(m)
-	for cbfni, ud := range this.cb_conference_peer_names {
-		cbfn := *(*cb_conference_peer_name_ftype)(cbfni)
-		peer_name := C.GoStringN((*C.char)((unsafe.Pointer)(a2)), C.int(a3))
-		this.putcbevts(func() { cbfn(this, uint32(a0), uint32(a1), peer_name, ud) })
-	}
+func (t *Tox) Group(number GroupNumber) Group {
+	return Group{t, number}
 }
 
-func (this *Tox) CallbackConferencePeerName(cbfn cb_conference_peer_name_ftype, userData interface{}) {
-	this.CallbackConferencePeerNameAdd(cbfn, userData)
-}
-func (this *Tox) CallbackConferencePeerNameAdd(cbfn cb_conference_peer_name_ftype, userData interface{}) {
-	cbfnp := (unsafe.Pointer)(&cbfn)
-	if _, ok := this.cb_conference_peer_names[cbfnp]; ok {
-		return
-	}
-	this.cb_conference_peer_names[cbfnp] = userData
-
-	C.tox_callback_conference_peer_name(this.toxcore, (*C.tox_conference_peer_name_cb)(C.callbackConferencePeerNameWrapperForC))
+func (g Group) Number() GroupNumber {
+	return g.number
 }
 
-//export callbackConferencePeerListChangedWrapperForC
-func callbackConferencePeerListChangedWrapperForC(m *C.Tox, a0 C.uint32_t, a1 unsafe.Pointer) {
-	var this = cbUserDatas.get(m)
-	for cbfni, ud := range this.cb_conference_peer_list_changeds {
-		cbfn := *(*cb_conference_peer_list_changed_ftype)(cbfni)
-		this.putcbevts(func() { cbfn(this, uint32(a0), ud) })
-	}
+func (g Group) String() string {
+	return fmt.Sprintf("group %d", g.number)
 }
 
-func (this *Tox) CallbackConferencePeerListChanged(cbfn cb_conference_peer_list_changed_ftype, userData interface{}) {
-	this.CallbackConferencePeerListChangedAdd(cbfn, userData)
-}
-func (this *Tox) CallbackConferencePeerListChangedAdd(cbfn cb_conference_peer_list_changed_ftype, userData interface{}) {
-	cbfnp := (unsafe.Pointer)(&cbfn)
-	if _, ok := this.cb_conference_peer_list_changeds[cbfnp]; ok {
-		return
-	}
-	this.cb_conference_peer_list_changeds[cbfnp] = userData
-
-	C.tox_callback_conference_peer_list_changed(this.toxcore, (*C.tox_conference_peer_list_changed_cb)(C.callbackConferencePeerListChangedWrapperForC))
+func (g Group) c() C.Tox_Group_Number {
+	return C.Tox_Group_Number(g.number)
 }
 
-// methods tox_conference_*
-func (this *Tox) ConferenceNew() (uint32, error) {
-	this.lock()
-	defer this.unlock()
-
-	var cerr C.Tox_Err_Conference_New
-	r := C.tox_conference_new(this.toxcore, &cerr)
-	if r == C.UINT32_MAX {
-		return uint32(r), toxerrf("add group chat failed: %d", cerr)
-	}
-
-	if this.hooks.ConferenceNew != nil {
-		this.hooks.ConferenceNew(uint32(r))
-	}
-	return uint32(r), nil
+type GroupPeer struct {
+	group  Group
+	number GroupPeerNumber
 }
 
-func (this *Tox) ConferenceDelete(groupNumber uint32) (int, error) {
-	this.lock()
-
-	var _gn = C.uint32_t(groupNumber)
-	var cerr C.Tox_Err_Conference_Delete
-	r := C.tox_conference_delete(this.toxcore, _gn, &cerr)
-	if bool(r) == false {
-		this.unlock()
-		return 1, toxerrf("delete group chat failed:%d", cerr)
-	}
-	if _, ok := this.cb_audios[groupNumber]; ok {
-		delete(this.cb_audios, groupNumber)
-	}
-	this.unlock()
-
-	if this.hooks.ConferenceDelete != nil {
-		this.hooks.ConferenceDelete(groupNumber)
-	}
-
-	return 0, nil
+func (g Group) Peer(number GroupPeerNumber) GroupPeer {
+	return GroupPeer{g, number}
 }
 
-func (this *Tox) ConferencePeerGetName(groupNumber uint32, peerNumber uint32) (string, error) {
-	var _gn = C.uint32_t(groupNumber)
-	var _pn = C.uint32_t(peerNumber)
-	var _name [MAX_NAME_LENGTH]byte
-
-	var cerr C.Tox_Err_Conference_Peer_Query
-	r := C.tox_conference_peer_get_name(this.toxcore, _gn, _pn, (*C.uint8_t)(&_name[0]), &cerr)
-	if r == false {
-		return "", toxerrf("get peer name failed: %d", cerr)
-	}
-
-	return C.GoString((*C.char)(safeptr(_name[:]))), nil
+func (gp GroupPeer) Group() Group {
+	return gp.group
 }
 
-func (this *Tox) ConferencePeerGetPublicKey(groupNumber uint32, peerNumber uint32) (string, error) {
-	var _gn = C.uint32_t(groupNumber)
-	var _pn = C.uint32_t(peerNumber)
-	var _pubkey [PUBLIC_KEY_SIZE]byte
-
-	var cerr C.Tox_Err_Conference_Peer_Query
-	r := C.tox_conference_peer_get_public_key(this.toxcore, _gn, _pn, (*C.uint8_t)(&_pubkey[0]), &cerr)
-	if r == false {
-		return "", toxerrf("get pubkey failed: %d", cerr)
-	}
-
-	pubkey := strings.ToUpper(hex.EncodeToString(_pubkey[:]))
-	return pubkey, nil
+func (gp GroupPeer) Number() GroupPeerNumber {
+	return gp.number
 }
 
-func (this *Tox) ConferenceInvite(friendNumber uint32, groupNumber uint32) (int, error) {
-	this.lock()
-	defer this.unlock()
-
-	var _fn = C.uint32_t(friendNumber)
-	var _gn = C.uint32_t(groupNumber)
-
-	// if give a friendNumber which not exists,
-	// the tox_invite_friend has a strange behaive: cause other tox_* call failed
-	// and the call will return true, but only strange thing accurs
-	// so just precheck the friendNumber and then go
-	if !this.FriendExists(friendNumber) {
-		return -1, toxerrf("friend not exists: %d", friendNumber)
-	}
-
-	var cerr C.Tox_Err_Conference_Invite
-	r := C.tox_conference_invite(this.toxcore, _fn, _gn, &cerr)
-	if r == false {
-		return 0, toxerrf("conference invite failed: %d", cerr)
-	}
-	return 1, nil
+func (gp GroupPeer) String() string {
+	return fmt.Sprintf("peer %d of group %d", gp.number, gp.group.number)
 }
 
-func (this *Tox) ConferenceJoin(friendNumber uint32, cookie string) (uint32, error) {
-	if cookie == "" || len(cookie) < 20 {
-		return 0, errors.New("Invalid cookie:" + cookie)
-	}
-
-	data, err := hex.DecodeString(cookie)
-	if err != nil {
-
-	}
-	var datlen = len(data)
-	if data == nil || datlen < 10 {
-		return 0, errors.New("Invalid data: " + cookie)
-	}
-
-	this.lock()
-	var _fn = C.uint32_t(friendNumber)
-	var _length = C.size_t(datlen)
-
-	var cerr C.Tox_Err_Conference_Join
-	r := C.tox_conference_join(this.toxcore, _fn, (*C.uint8_t)(&data[0]), _length, &cerr)
-	if r == C.UINT32_MAX {
-		defer this.unlock()
-		return uint32(r), toxerrf("join group chat failed: %d", cerr)
-	}
-	defer this.unlock()
-
-	if this.hooks.ConferenceJoin != nil {
-		this.hooks.ConferenceJoin(friendNumber, uint32(r), cookie)
-	}
-
-	return uint32(r), nil
+func (gp GroupPeer) c() C.Tox_Group_Peer_Number {
+	return C.Tox_Group_Peer_Number(gp.number)
 }
 
-func (this *Tox) ConferenceSendMessage(groupNumber uint32, mtype int, message string) (int, error) {
-	this.lock()
-	defer this.unlock()
-
-	var _gn = C.uint32_t(groupNumber)
-	var _message = []byte(message)
-	var _length = C.size_t(len(message))
-
-	switch mtype {
-	case MESSAGE_TYPE_NORMAL:
-	case MESSAGE_TYPE_ACTION:
-	default:
-		return 0, toxerrf("Invalid message type: %d", mtype)
-	}
-
-	var cerr C.Tox_Err_Conference_Send_Message
-	r := C.tox_conference_send_message(this.toxcore, _gn, (C.Tox_Message_Type)(mtype), (*C.uint8_t)(&_message[0]), _length, &cerr)
-	if r == false {
-		return 0, toxerrf("group send message failed: %d", cerr)
-	}
-	return 1, nil
+func (t *Tox) GroupNew(privacy GroupPrivacyState, groupName, name string) (Group, error) {
+	p := t.lock()
+	defer t.h.Unlock()
+	var err C.Tox_Err_Group_New
+	n := C.tox_group_new(p, C.Tox_Group_Privacy_State(privacy), cString(groupName), C.size_t(len(groupName)),
+		cString(name), C.size_t(len(name)), &err)
+	return Group{t, GroupNumber(n)}, toError[GroupNewError](uint32(err))
 }
 
-func (this *Tox) ConferenceSetTitle(groupNumber uint32, title string) (int, error) {
-	this.lock()
-	defer this.unlock()
+func (t *Tox) GroupJoin(chatID GroupChatID, name, password string) (Group, error) {
+	p := t.lock()
+	defer t.h.Unlock()
+	var err C.Tox_Err_Group_Join
+	n := C.tox_group_join(p, cBytes(chatID[:]), cString(name), C.size_t(len(name)),
+		cString(password), C.size_t(len(password)), &err)
+	return Group{t, GroupNumber(n)}, toError[GroupJoinError](uint32(err))
+}
 
-	var _gn = C.uint32_t(groupNumber)
-	var _title = []byte(title)
-	var _length = C.size_t(len(title))
+func (t *Tox) GroupInviteAccept(friend Friend, inviteData []byte, name, password string) (Group, error) {
+	p := t.lock()
+	defer t.h.Unlock()
+	var err C.Tox_Err_Group_Invite_Accept
+	n := C.tox_group_invite_accept(p, friend.c(), cBytes(inviteData), C.size_t(len(inviteData)),
+		cString(name), C.size_t(len(name)), cString(password), C.size_t(len(password)), &err)
+	return Group{t, GroupNumber(n)}, toError[GroupInviteAcceptError](uint32(err))
+}
 
-	var cerr C.Tox_Err_Conference_Title
-	r := C.tox_conference_set_title(this.toxcore, _gn, (*C.uint8_t)(&_title[0]), _length, &cerr)
-	if r == false {
-		if len(title) > MAX_NAME_LENGTH {
-			return 0, errors.New("title too long")
-		}
-		return 0, toxerrf("set title failed:%d", cerr)
+func (t *Tox) GroupByID(chatID GroupChatID) (Group, error) {
+	p := t.lock()
+	defer t.h.Unlock()
+	var err C.Tox_Err_Group_By_Id
+	n := C.tox_group_by_id(p, cBytes(chatID[:]), &err)
+	return Group{t, GroupNumber(n)}, toError[GroupByIDError](uint32(err))
+}
+
+func (t *Tox) GroupList() []Group {
+	p := t.lock()
+	defer t.h.Unlock()
+	numbers := make([]C.Tox_Group_Number, C.tox_group_get_group_list_size(p))
+	if len(numbers) == 0 {
+		return nil
 	}
-
-	if this.hooks.ConferenceSetTitle != nil {
-		this.hooks.ConferenceSetTitle(groupNumber, title)
+	C.tox_group_get_group_list(p, &numbers[0])
+	groups := make([]Group, len(numbers))
+	for i, n := range numbers {
+		groups[i] = Group{t, GroupNumber(n)}
 	}
-	return 1, nil
+	return groups
 }
 
-func (this *Tox) ConferenceGetTitle(groupNumber uint32) (string, error) {
-	var _gn = C.uint32_t(groupNumber)
-	var _title [MAX_NAME_LENGTH]byte
+func (g Group) IsConnected() (bool, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Is_Connected
+	connected := C.tox_group_is_connected(p, g.c(), &err)
+	return bool(connected), toError[GroupIsConnectedError](uint32(err))
+}
 
-	r := C.tox_conference_get_title(this.toxcore, _gn, (*C.uint8_t)(&_title[0]), nil)
-	if r == false {
-		return "", errors.New("get title failed")
+func (g Group) Disconnect() error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Disconnect
+	C.tox_group_disconnect(p, g.c(), &err)
+	return toError[GroupDisconnectError](uint32(err))
+}
+
+func (g Group) Leave(partMessage string) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Leave
+	C.tox_group_leave(p, g.c(), cString(partMessage), C.size_t(len(partMessage)), &err)
+	return toError[GroupLeaveError](uint32(err))
+}
+
+func (g Group) SelfSetName(name string) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Self_Name_Set
+	C.tox_group_self_set_name(p, g.c(), cString(name), C.size_t(len(name)), &err)
+	return toError[GroupSelfNameSetError](uint32(err))
+}
+
+func (g Group) SelfName() (string, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Self_Query
+	size := C.tox_group_self_get_name_size(p, g.c(), &err)
+	if err := toError[GroupSelfQueryError](uint32(err)); err != nil {
+		return "", err
 	}
-	return C.GoString((*C.char)(safeptr(_title[:]))), nil
+	return readString(size, func(buf *C.uint8_t) {
+		C.tox_group_self_get_name(p, g.c(), buf, nil)
+	}), nil
 }
 
-func (this *Tox) ConferencePeerNumberIsOurs(groupNumber uint32, peerNumber uint32) bool {
-	var _gn = C.uint32_t(groupNumber)
-	var _pn = C.uint32_t(peerNumber)
-
-	r := C.tox_conference_peer_number_is_ours(this.toxcore, _gn, _pn, nil)
-	return bool(r)
+func (g Group) SelfSetStatus(status UserStatus) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Self_Status_Set
+	C.tox_group_self_set_status(p, g.c(), C.Tox_User_Status(status), &err)
+	return toError[GroupSelfStatusSetError](uint32(err))
 }
 
-func (this *Tox) ConferencePeerCount(groupNumber uint32) uint32 {
-	var _gn = C.uint32_t(groupNumber)
-
-	r := C.tox_conference_peer_count(this.toxcore, _gn, nil)
-	return uint32(r)
+func (g Group) SelfStatus() (UserStatus, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Self_Query
+	status := C.tox_group_self_get_status(p, g.c(), &err)
+	return UserStatus(status), toError[GroupSelfQueryError](uint32(err))
 }
 
-// extra combined api
-func (this *Tox) ConferenceGetNames(groupNumber uint32) []string {
-	peerCount := this.ConferencePeerCount(groupNumber)
-	vec := make([]string, peerCount)
-	if peerCount == 0 {
-		return vec
+func (g Group) SelfRole() (GroupRole, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Self_Query
+	role := C.tox_group_self_get_role(p, g.c(), &err)
+	return GroupRole(role), toError[GroupSelfQueryError](uint32(err))
+}
+
+func (g Group) SelfPeer() (GroupPeer, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Self_Query
+	n := C.tox_group_self_get_peer_id(p, g.c(), &err)
+	return GroupPeer{g, GroupPeerNumber(n)}, toError[GroupSelfQueryError](uint32(err))
+}
+
+func (g Group) SelfPublicKey() (PublicKey, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var k PublicKey
+	var err C.Tox_Err_Group_Self_Query
+	C.tox_group_self_get_public_key(p, g.c(), cOut(k[:]), &err)
+	return k, toError[GroupSelfQueryError](uint32(err))
+}
+
+func (g Group) SetTopic(topic string) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Topic_Set
+	C.tox_group_set_topic(p, g.c(), cString(topic), C.size_t(len(topic)), &err)
+	return toError[GroupTopicSetError](uint32(err))
+}
+
+func (g Group) Topic() (string, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_State_Query
+	size := C.tox_group_get_topic_size(p, g.c(), &err)
+	if err := toError[GroupStateQueryError](uint32(err)); err != nil {
+		return "", err
 	}
+	return readString(size, func(buf *C.uint8_t) {
+		C.tox_group_get_topic(p, g.c(), buf, nil)
+	}), nil
+}
 
-	for idx := uint32(0); idx < math.MaxUint32; idx++ {
-		pname, err := this.ConferencePeerGetName(groupNumber, idx)
-		if err != nil {
-			break
-		}
-		vec[idx] = pname
-		if uint32(len(vec)) >= peerCount {
-			break
-		}
+func (g Group) Name() (string, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_State_Query
+	size := C.tox_group_get_name_size(p, g.c(), &err)
+	if err := toError[GroupStateQueryError](uint32(err)); err != nil {
+		return "", err
 	}
-
-	return vec
+	return readString(size, func(buf *C.uint8_t) {
+		C.tox_group_get_name(p, g.c(), buf, nil)
+	}), nil
 }
 
-func (this *Tox) ConferenceGetPeerPubkeys(groupNumber uint32) []string {
-	vec := make([]string, 0)
-	peerCount := this.ConferencePeerCount(groupNumber)
-	for peerNumber := uint32(0); peerNumber < math.MaxUint32; peerNumber++ {
-		pubkey, err := this.ConferencePeerGetPublicKey(groupNumber, peerNumber)
-		if err != nil {
-			break
-		} else {
-			vec = append(vec, pubkey)
-		}
-		if uint32(len(vec)) >= peerCount {
-			break
-		}
+func (g Group) ChatID() (GroupChatID, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var id GroupChatID
+	var err C.Tox_Err_Group_State_Query
+	C.tox_group_get_chat_id(p, g.c(), cOut(id[:]), &err)
+	return id, toError[GroupStateQueryError](uint32(err))
+}
+
+func (g Group) PrivacyState() (GroupPrivacyState, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_State_Query
+	state := C.tox_group_get_privacy_state(p, g.c(), &err)
+	return GroupPrivacyState(state), toError[GroupStateQueryError](uint32(err))
+}
+
+func (g Group) VoiceState() (GroupVoiceState, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_State_Query
+	state := C.tox_group_get_voice_state(p, g.c(), &err)
+	return GroupVoiceState(state), toError[GroupStateQueryError](uint32(err))
+}
+
+func (g Group) TopicLock() (GroupTopicLock, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_State_Query
+	lock := C.tox_group_get_topic_lock(p, g.c(), &err)
+	return GroupTopicLock(lock), toError[GroupStateQueryError](uint32(err))
+}
+
+func (g Group) PeerLimit() (uint16, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_State_Query
+	limit := C.tox_group_get_peer_limit(p, g.c(), &err)
+	return uint16(limit), toError[GroupStateQueryError](uint32(err))
+}
+
+func (g Group) Password() (string, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_State_Query
+	size := C.tox_group_get_password_size(p, g.c(), &err)
+	if err := toError[GroupStateQueryError](uint32(err)); err != nil {
+		return "", err
 	}
-	return vec
+	return readString(size, func(buf *C.uint8_t) {
+		C.tox_group_get_password(p, g.c(), buf, nil)
+	}), nil
 }
 
-func (this *Tox) ConferenceGetPeers(groupNumber uint32) map[uint32]string {
-	vec := make(map[uint32]string, 0)
-	peerCount := this.ConferencePeerCount(groupNumber)
-	for peerNumber := uint32(0); peerNumber < math.MaxUint32; peerNumber++ {
-		pubkey, err := this.ConferencePeerGetPublicKey(groupNumber, peerNumber)
-		if err != nil {
-			break
-		} else {
-			vec[peerNumber] = pubkey
-		}
-		if uint32(len(vec)) >= peerCount {
-			break
-		}
+func (g Group) SendMessage(kind MessageType, message string) (GroupMessageID, error) {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Send_Message
+	id := C.tox_group_send_message(p, g.c(), C.Tox_Message_Type(kind), cString(message), C.size_t(len(message)), &err)
+	return GroupMessageID(id), toError[GroupSendMessageError](uint32(err))
+}
+
+func (g Group) SendCustomPacket(lossless bool, data []byte) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Send_Custom_Packet
+	C.tox_group_send_custom_packet(p, g.c(), C.bool(lossless), cBytes(data), C.size_t(len(data)), &err)
+	return toError[GroupSendCustomPacketError](uint32(err))
+}
+
+func (g Group) InviteFriend(friend Friend) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Invite_Friend
+	C.tox_group_invite_friend(p, g.c(), friend.c(), &err)
+	return toError[GroupInviteFriendError](uint32(err))
+}
+
+func (g Group) SetPassword(password string) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Set_Password
+	C.tox_group_set_password(p, g.c(), cString(password), C.size_t(len(password)), &err)
+	return toError[GroupSetPasswordError](uint32(err))
+}
+
+func (g Group) SetTopicLock(lock GroupTopicLock) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Set_Topic_Lock
+	C.tox_group_set_topic_lock(p, g.c(), C.Tox_Group_Topic_Lock(lock), &err)
+	return toError[GroupSetTopicLockError](uint32(err))
+}
+
+func (g Group) SetVoiceState(state GroupVoiceState) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Set_Voice_State
+	C.tox_group_set_voice_state(p, g.c(), C.Tox_Group_Voice_State(state), &err)
+	return toError[GroupSetVoiceStateError](uint32(err))
+}
+
+func (g Group) SetPrivacyState(state GroupPrivacyState) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Set_Privacy_State
+	C.tox_group_set_privacy_state(p, g.c(), C.Tox_Group_Privacy_State(state), &err)
+	return toError[GroupSetPrivacyStateError](uint32(err))
+}
+
+func (g Group) SetPeerLimit(limit uint16) error {
+	p := g.tox.lock()
+	defer g.tox.h.Unlock()
+	var err C.Tox_Err_Group_Set_Peer_Limit
+	C.tox_group_set_peer_limit(p, g.c(), C.uint16_t(limit), &err)
+	return toError[GroupSetPeerLimitError](uint32(err))
+}
+
+func (gp GroupPeer) Name() (string, error) {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var err C.Tox_Err_Group_Peer_Query
+	size := C.tox_group_peer_get_name_size(p, gp.group.c(), gp.c(), &err)
+	if err := toError[GroupPeerQueryError](uint32(err)); err != nil {
+		return "", err
 	}
-	return vec
+	return readString(size, func(buf *C.uint8_t) {
+		C.tox_group_peer_get_name(p, gp.group.c(), gp.c(), buf, nil)
+	}), nil
 }
 
-func (this *Tox) ConferenceGetChatlistSize() uint32 {
-	r := C.tox_conference_get_chatlist_size(this.toxcore)
-	return uint32(r)
+func (gp GroupPeer) Status() (UserStatus, error) {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var err C.Tox_Err_Group_Peer_Query
+	status := C.tox_group_peer_get_status(p, gp.group.c(), gp.c(), &err)
+	return UserStatus(status), toError[GroupPeerQueryError](uint32(err))
 }
 
-func (this *Tox) ConferenceGetChatlist() []uint32 {
-	var sz uint32 = this.ConferenceGetChatlistSize()
-	vec := make([]uint32, sz)
-	if sz == 0 {
-		return vec
-	}
-
-	vec_p := unsafe.Pointer(&vec[0])
-	C.tox_conference_get_chatlist(this.toxcore, (*C.uint32_t)(vec_p))
-	return vec
+func (gp GroupPeer) Role() (GroupRole, error) {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var err C.Tox_Err_Group_Peer_Query
+	role := C.tox_group_peer_get_role(p, gp.group.c(), gp.c(), &err)
+	return GroupRole(role), toError[GroupPeerQueryError](uint32(err))
 }
 
-func (this *Tox) ConferenceGetType(groupNumber uint32) (int, error) {
-	var _gn = C.uint32_t(groupNumber)
-
-	r := C.tox_conference_get_type(this.toxcore, _gn, nil)
-	if int(r) == -1 {
-		return int(r), errors.New("get type failed")
-	}
-	return int(r), nil
+func (gp GroupPeer) ConnectionStatus() (Connection, error) {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var err C.Tox_Err_Group_Peer_Query
+	c := C.tox_group_peer_get_connection_status(p, gp.group.c(), gp.c(), &err)
+	return Connection(c), toError[GroupPeerQueryError](uint32(err))
 }
 
-func (this *Tox) ConferenceGetIdentifier(groupNumber uint32) (string, error) {
-	idbuf := [1 + C.TOX_PUBLIC_KEY_SIZE]byte{}
-	C.tox_conference_get_id(this.toxcore, C.uint32_t(groupNumber), (*C.uint8_t)(&idbuf[0]))
-	identifier := strings.ToUpper(hex.EncodeToString(idbuf[:]))
-	identifier = identifier[2:] // 1B(type)+32B(identifier)
+func (gp GroupPeer) PublicKey() (PublicKey, error) {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var k PublicKey
+	var err C.Tox_Err_Group_Peer_Query
+	C.tox_group_peer_get_public_key(p, gp.group.c(), gp.c(), cOut(k[:]), &err)
+	return k, toError[GroupPeerQueryError](uint32(err))
+}
 
-	return identifier, nil
+func (gp GroupPeer) SendPrivateMessage(kind MessageType, message string) (GroupMessageID, error) {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var err C.Tox_Err_Group_Send_Private_Message
+	id := C.tox_group_send_private_message(p, gp.group.c(), gp.c(), C.Tox_Message_Type(kind), cString(message),
+		C.size_t(len(message)), &err)
+	return GroupMessageID(id), toError[GroupSendPrivateMessageError](uint32(err))
+}
+
+func (gp GroupPeer) SendCustomPrivatePacket(lossless bool, data []byte) error {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var err C.Tox_Err_Group_Send_Custom_Private_Packet
+	C.tox_group_send_custom_private_packet(p, gp.group.c(), gp.c(), C.bool(lossless), cBytes(data), C.size_t(len(data)), &err)
+	return toError[GroupSendCustomPrivatePacketError](uint32(err))
+}
+
+func (gp GroupPeer) SetIgnore(ignore bool) error {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var err C.Tox_Err_Group_Set_Ignore
+	C.tox_group_set_ignore(p, gp.group.c(), gp.c(), C.bool(ignore), &err)
+	return toError[GroupSetIgnoreError](uint32(err))
+}
+
+func (gp GroupPeer) SetRole(role GroupRole) error {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var err C.Tox_Err_Group_Set_Role
+	C.tox_group_set_role(p, gp.group.c(), gp.c(), C.Tox_Group_Role(role), &err)
+	return toError[GroupSetRoleError](uint32(err))
+}
+
+func (gp GroupPeer) Kick() error {
+	p := gp.group.tox.lock()
+	defer gp.group.tox.h.Unlock()
+	var err C.Tox_Err_Group_Kick_Peer
+	C.tox_group_kick_peer(p, gp.group.c(), gp.c(), &err)
+	return toError[GroupKickPeerError](uint32(err))
+}
+
+type GroupExitType uint32
+
+const (
+	GroupExitTypeQuit             GroupExitType = C.TOX_GROUP_EXIT_TYPE_QUIT
+	GroupExitTypeTimeout          GroupExitType = C.TOX_GROUP_EXIT_TYPE_TIMEOUT
+	GroupExitTypeDisconnected     GroupExitType = C.TOX_GROUP_EXIT_TYPE_DISCONNECTED
+	GroupExitTypeSelfDisconnected GroupExitType = C.TOX_GROUP_EXIT_TYPE_SELF_DISCONNECTED
+	GroupExitTypeKick             GroupExitType = C.TOX_GROUP_EXIT_TYPE_KICK
+	GroupExitTypeSyncError        GroupExitType = C.TOX_GROUP_EXIT_TYPE_SYNC_ERROR
+)
+
+func (t GroupExitType) String() string {
+	return enumString(C.tox_group_exit_type_to_string(C.Tox_Group_Exit_Type(t)), "TOX_GROUP_EXIT_TYPE_", "GroupExitType", uint32(t))
+}
+
+type GroupJoinFail uint32
+
+const (
+	GroupJoinFailPeerLimit       GroupJoinFail = C.TOX_GROUP_JOIN_FAIL_PEER_LIMIT
+	GroupJoinFailInvalidPassword GroupJoinFail = C.TOX_GROUP_JOIN_FAIL_INVALID_PASSWORD
+	GroupJoinFailUnknown         GroupJoinFail = C.TOX_GROUP_JOIN_FAIL_UNKNOWN
+)
+
+func (f GroupJoinFail) String() string {
+	return enumString(C.tox_group_join_fail_to_string(C.Tox_Group_Join_Fail(f)), "TOX_GROUP_JOIN_FAIL_", "GroupJoinFail", uint32(f))
+}
+
+type GroupModEvent uint32
+
+const (
+	GroupModEventKick      GroupModEvent = C.TOX_GROUP_MOD_EVENT_KICK
+	GroupModEventObserver  GroupModEvent = C.TOX_GROUP_MOD_EVENT_OBSERVER
+	GroupModEventUser      GroupModEvent = C.TOX_GROUP_MOD_EVENT_USER
+	GroupModEventModerator GroupModEvent = C.TOX_GROUP_MOD_EVENT_MODERATOR
+)
+
+func (e GroupModEvent) String() string {
+	return enumString(C.tox_group_mod_event_to_string(C.Tox_Group_Mod_Event(e)), "TOX_GROUP_MOD_EVENT_", "GroupModEvent", uint32(e))
 }
