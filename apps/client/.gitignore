@@ -1,0 +1,5 @@
+# What go build makes here.
+/client
+# What fonts/emoji.sh fetches and makes.
+/fonts/LICENSE
+/fonts/emoji.ttf

@@ -1,0 +1,54 @@
+name: android
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  apk:
+    name: Go Tox APK
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Checkout c-toxcore
+        uses: actions/checkout@v7
+        with:
+          repository: TokTok/c-toxcore
+          path: third_party/c-toxcore
+          submodules: recursive
+      - name: Note the c-toxcore commit
+        id: toxcore
+        run: echo "commit=$(git -C third_party/c-toxcore rev-parse HEAD)" >>"$GITHUB_OUTPUT"
+      - name: Cache toxcore for Android
+        id: deps
+        uses: actions/cache@v6
+        with:
+          path: third_party/android-arm64
+          key: android-arm64-${{ steps.toxcore.outputs.commit }}-${{ hashFiles('apps/client/android/deps.sh') }}
+      - name: Build toxcore for Android
+        if: steps.deps.outputs.cache-hit != 'true'
+        run: apps/client/android/deps.sh arm64 third_party/android-arm64 third_party/c-toxcore
+      - name: Install fonttools
+        run: |
+          python3 -m venv "$RUNNER_TEMP/fonttools"
+          "$RUNNER_TEMP/fonttools/bin/pip" install fonttools==4.61.1
+          echo "$RUNNER_TEMP/fonttools/bin" >>"$GITHUB_PATH"
+      - name: Install the Android platform
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"'
+      - name: Make a debug key
+        run: |
+          mkdir -p ~/.android
+          keytool -genkeypair -keystore ~/.android/debug.keystore -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+      - name: Build the APK
+        run: |
+          export PKG_CONFIG_PATH=$PWD/third_party/android-arm64/lib/pkgconfig
+          apps/client/android/build.sh arm64 go-tox-arm64.apk
+      - uses: actions/upload-artifact@v7
+        with:
+          name: go-tox-arm64
+          path: go-tox-arm64.apk
+          if-no-files-found: error

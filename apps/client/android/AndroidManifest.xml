@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- build.sh adds the version, and the SDK versions. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="chat.tox.gotox">
+	<uses-permission android:name="android.permission.INTERNET"/>
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"/>
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+	<!-- Calls. -->
+	<uses-permission android:name="android.permission.RECORD_AUDIO"/>
+	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+	<uses-permission android:name="android.permission.CAMERA"/>
+	<uses-feature android:glEsVersion="0x00020000" android:required="false"/>
+	<uses-feature android:name="android.hardware.type.pc" android:required="false"/>
+	<application android:icon="@mipmap/ic_launcher" android:label="Go Tox">
+		<activity android:name="org.gioui.GioActivity"
+			android:label="Go Tox"
+			android:theme="@style/Theme.GioApp"
+			android:configChanges="screenSize|screenLayout|smallestScreenSize|orientation|keyboardHidden"
+			android:windowSoftInputMode="adjustResize"
+			android:launchMode="singleInstance"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN"/>
+				<category android:name="android.intent.category.LAUNCHER"/>
+			</intent-filter>
+			<!-- Tox ID links and QR codes. -->
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW"/>
+				<category android:name="android.intent.category.DEFAULT"/>
+				<category android:name="android.intent.category.BROWSABLE"/>
+				<data android:scheme="tox"/>
+			</intent-filter>
+		</activity>
+		<service android:name="chat.tox.gotox.ToxService"
+			android:foregroundServiceType="remoteMessaging"
+			android:exported="false"/>
+		<receiver android:name="chat.tox.gotox.BootReceiver"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.BOOT_COMPLETED"/>
+			</intent-filter>
+		</receiver>
+	</application>
+</manifest>
